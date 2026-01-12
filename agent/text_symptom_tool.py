@@ -1,48 +1,50 @@
 import json
+import requests
 from langchain_core.tools import tool
-from transformers import AutoTokenzier, AutoModelForSequenceClassification
-import torch
 
 @tool
 def analyze_symptom_text(symptoms: str) -> str:
     """
-    Analyzes text based symptoms using Text Classification Model.
+    Analyzes text-based symptoms using classification model via api backend.
     Input: Patient's symptom description text.
-    Output: Predicted conditions with confidence scores. 
+    Output: Predicted conditions with confidence scores.
     """
-    #Load model:
-    model_name = "datdevsteve/nivra-text-diagnosis"
-    tokenizer = AutoTokenzier.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-
-    inputs = tokenizer(symptoms, return_tensors="pt", truncation=True, padding=True, max_length=512)
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-
-    #Map Predictions:
-
     try:
-        with open("labels.json", "r", encoding="utf-8") as f:
-            disease_labels = json.load(f)
+        print(f"🩺 Analyzing symptoms: {symptoms[:50]}...")
         
-        # Ensure labels is a list (handles both list and dict formats)
-        if isinstance(disease_labels, dict):
-            disease_labels = list(disease_labels.values())
-        elif not isinstance(disease_labels, list):
-            disease_labels = list(disease_labels)
+        # Call your HF ClinicalBERT FastAPI Space
+        api_url = "https://datdevsteve-nivra-text-diagnosis.hf.space/run/predict"
+        payload = {
+            "data": [symptoms],
+            "fn_index": 0  # Default prediction function
+        }
+        
+        print("🔬 Calling ClinicalBERT FastAPI backend...")
+        response = requests.post(api_url, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # Extract diagnosis from HF Space response format
+        if "data" in result and len(result["data"]) > 0:
+            diagnosis = result["data"][0]
             
-    except FileNotFoundError:
-        # Fallback labels if JSON not found
-        disease_labels = ["fever_malaria", "dengue", "covid", "typhoid", "pneumonia", "tb"]
-        print("Warning: labels.json not found, using fallback labels")
-    except json.JSONDecodeError:
-        # Fallback if JSON is malformed
-        disease_labels = ["fever_malaria", "dengue", "covid", "typhoid", "pneumonia", "tb"]
-        print("Warning: labels.json malformed, using fallback labels")
-    
-    top_prediction = disease_labels[predictions.argmax().item()]
-    confidence = predictions.max().item()
+            # Parse confidence if available, else default format
+            if isinstance(diagnosis, list) and len(diagnosis) > 0:
+                diagnosis = diagnosis[0]
+                
+            return f"""
+[TEXT SYMPTOM ANALYSIS - SUCCESS]:
+✅ FastAPI Backend Response: {diagnosis}
 
-    return f"Primary diagnosis: {top_prediction.replace("_", " ").title()}(Confidence: {confidence:.2%} )"
+📡 **Backend**: nivra-text-diagnosis HF Space"""
+        else:
+            # Fallback with generic advice
+            return "[TEXT SYMPTOM ANALYSIS - WARNING]: No diagnosis returned from backend. Please consult a doctor."
+            
+    except requests.exceptions.Timeout:
+        return "[TEXT SYMPTOM ANALYSIS - ERROR]: Analysis timeout. Please try again or consult a doctor."
+    except requests.exceptions.RequestException as e:
+        return f"[TEXT SYMPTOM ANALYSIS - ERROR]: Network error: {str(e)}. Please consult a doctor."
+    except Exception as e:
+        return f"[TEXT SYMPTOM ANALYSIS - ERROR]: Unexpected error: {str(e)}. Please consult a doctor."

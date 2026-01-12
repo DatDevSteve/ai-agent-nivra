@@ -1,22 +1,29 @@
+# LangChain Core (Agent + Tools)
 langchain>=0.3.1
 langchain-groq>=0.1.0
 langchain-community>=0.0.20
 langchain-core>=0.1.23
 langchain-huggingface>=0.1.0
+
+# RAG (Your chroma_db)
 chromadb>=0.5.11
-groq>=0.4.0
 sentence-transformers>=2.2.2
 faiss-cpu>=1.7.4
-transformers>=4.36.0
-torch>=2.1.0
-huggingface-hub>=0.20.0
-pandas>=2.0.0
-numpy>=1.24.0
-fastapi>=0.109.0
-uvicorn>=0.27.0
-pydantic>=2.5.0
-python-dotenv>=1.0.0
-pillow>=12.1.0
+
+# Groq LLM
+groq>=0.4.0
+
+# HF Spaces UI
 gradio>=5.4.0
-accelerate>=0.21.0
-requests>=2.31.0
+
+# API Clients (Text + Vision Spaces)
+requests>=2.32.0
+
+# Image processing (for API calls)
+pillow>=12.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+pydantic>=2.5.0

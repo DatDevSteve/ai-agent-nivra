@@ -3,7 +3,6 @@ langchain-groq>=0.1.0
 langchain-community>=0.0.20
 langchain-core>=0.1.23
 langchain-huggingface>=0.1.0
-langchain-experimental>=0.3.0  # ✅ Add this!
 chromadb>=0.5.11
 sentence-transformers>=2.2.2
 faiss-cpu>=1.7.4

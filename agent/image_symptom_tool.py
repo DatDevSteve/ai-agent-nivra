@@ -14,7 +14,7 @@ def analyze_symptom_image(image_url: str, image_description: str = "") -> str:
     try:
         # Download image from URL
         print(f"📥 Downloading image from: {image_url}")
-        image_response = requests.get(image_url, timeout=15)
+        image_response = requests.get(image_url, timeout=120)
         image_response.raise_for_status()
         image = Image.open(io.BytesIO(image_response.content)).convert('RGB')
         

@@ -15,7 +15,7 @@ load_dotenv()
 rag = NivraRAGRetriever()
 llm = ChatGroq(
     temperature=0.1,
-    model_name="llama-3.1-70b-versatile",
+    model_name="llama-3.3-70b-versatile",
     api_key=os.getenv("GROQ_API_KEY")
 )
 
@@ -45,7 +45,7 @@ Basic Output Structure:
 
 FEW-SHOT EXAMPLES (FOLLOW EXACT FORMAT):
 
-(EXAMPLE 1- Voice Input)
+(EXAMPLE 1- Voice Input- with [VOICE MODE] Token present in input)
 Input: [VOICE MODE] "I have fever, chills and severe headache."
 ---
 [TOOLS USED] analyze_symptom_text, rag_tool [/TOOLS USED]
@@ -93,80 +93,72 @@ Seek medical consultation immediately. Ultrasound may be needed.
 **CRITICAL**: High-risk triggers (EMERGENCY=Yes): melanoma, basal_cell_carcinoma, dengue, malaria, typhoid, cancer"""
 
 def nivra_chat(user_input, chat_history=None):
-    """Main chat function - YOUR SYSTEM PROMPT + TOOL RESULTS"""
+    """DEBUG VERSION - Shows EXACT error"""
     
-    # ✅ FIXED: Extract text from Gradio input
+    # Input handling
     if isinstance(user_input, dict):
         user_input = user_input.get('text', '') or user_input.get('message', '')
-    elif not isinstance(user_input, str):
-        user_input = str(user_input)
-    user_input = user_input.strip()
+    user_input = str(user_input).strip()
     
-    if not user_input:
-        return "[ERROR] Please provide symptoms for analysis."
+    print(f"🔍 DEBUG: Input received: '{user_input}'")
     
     input_lower = user_input.lower()
-    text_keywords = ['fever', 'headache', 'cough', 'pain', 'vomiting', 'chills', 'diarrhea', 'nausea']
-    image_keywords = ['rash', 'skin', 'bump', 'spot', 'mark', 'itch', 'redness']
+    text_keywords = ['fever', 'headache', 'cough', 'pain', 'vomiting', 'chills']
     
     tools_used = []
     tool_results = []
     
-    # Text symptom analysis
+    # TEST TEXT TOOL FIRST
     if any(keyword in input_lower for keyword in text_keywords):
+        print("🧪 TESTING analyze_symptom_text...")
         try:
-            symptom_result = analyze_symptom_text(user_input)
+            print("📡 Calling HF Space: https://datdevsteve-nivra-text-diagnosis.hf.space")
+            symptom_result = analyze_symptom_text.invoke(user_input)
+            print(f"✅ TEXT TOOL SUCCESS: {symptom_result[:100]}...")
             tools_used.append("analyze_symptom_text")
             tool_results.append(symptom_result)
         except Exception as e:
-            tool_results.append(f"Text analysis unavailable: {str(e)}")
+            error_msg = f"TEXT TOOL FAILED: {str(e)}"
+            print(f"❌ {error_msg}")
+            tool_results.append(error_msg)
     
-    # Image symptom analysis (demo mode)
-    if any(keyword in input_lower for keyword in image_keywords):
-        try:
-            image_result = "[DEMO] Skin condition analysis requires actual image upload. Common: Psoriasis/Eczema (80% confidence)"
-            tools_used.append("analyze_symptom_image")
-            tool_results.append(image_result)
-        except Exception as e:
-            tool_results.append(f"Image analysis unavailable: {str(e)}")
-    
-    # Always get RAG context
+    # TEST RAG
+    print("🧪 TESTING RAG...")
     try:
         rag_result = rag.getRelevantDocs(user_input)
+        print(f"✅ RAG SUCCESS: {str(rag_result)[:100]}...")
         tools_used.append("rag_tool")
         tool_results.append(rag_result)
     except Exception as e:
-        tool_results.append(f"RAG unavailable: {str(e)}")
+        error_msg = f"RAG FAILED: {str(e)}"
+        print(f"❌ {error_msg}")
+        tool_results.append(error_msg)
     
-    # ✅ FIXED: Ensure all tool results are strings before joining
-    tool_results_str = []
-    for result in tool_results:
-        if isinstance(result, list):
-            tool_results_str.append("\n".join(str(item) for item in result))
-        else:
-            tool_results_str.append(str(result))
-    
+    # Convert to strings
+    tool_results_str = [str(r) for r in tool_results]
     tool_results_text = "\n".join(tool_results_str)
-    tools_used_text = ", ".join(tools_used) if tools_used else "None"
     
-    # Create final prompt with YOUR system prompt + tool results
+    # Quick fallback if tools fail
+    if "FAILED" in tool_results_text:
+        return f"""[TOOLS USED] Tools failed - Network issue
+[SYMPTOMS] {user_input}
+[PRIMARY DIAGNOSIS] Possible viral fever/infection
+[DIAGNOSIS DESCRIPTION] Fever+chills suggests infection. ClinicalBERT backend temporarily unavailable.
+[FIRST AID] Rest, hydrate, paracetamol. Monitor temperature.
+[EMERGENCY] No - but consult doctor if >3 days"""
+
+    # Your normal flow
     final_prompt = f"""{SYSTEM_PROMPT}
 
-TOOLS USED: {tools_used_text}
 TOOL RESULTS:
 {tool_results_text}
-
+q 
 USER INPUT: {user_input}
 
-Now provide diagnosis in EXACT format shown in examples above:"""
+Provide diagnosis:"""
     
     try:
         response = llm.invoke(final_prompt)
         return response.content.strip()
     except Exception as e:
-        return f"""[TOOLS USED] Error occurred
-[SYMPTOMS] {user_input} [/SYMPTOMS]
-[PRIMARY DIAGNOSIS] System error - unable to process [/PRIMARY DIAGNOSIS]
-[DIAGNOSIS DESCRIPTION] Technical issue occurred during analysis [/DIAGNOSIS DESCRIPTION]
-[FIRST AID] Please consult a doctor immediately for evaluation [/FIRST AID]
-[EMERGENCY] Yes [/EMERGENCY]"""
+        return f"LLM FAILED: {str(e)}"

@@ -20,7 +20,7 @@ def analyze_symptom_text(symptoms: str) -> str:
         }
         
         print("🔬 Calling ClinicalBERT FastAPI backend...")
-        response = requests.post(api_url, json=payload, timeout=30)
+        response = requests.post(api_url, json=payload, timeout=120)
         response.raise_for_status()
         
         result = response.json()
